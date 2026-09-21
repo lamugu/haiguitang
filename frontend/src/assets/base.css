@@ -8,12 +8,19 @@
   --teal: #2f6f73;
   --teal-bright: #3d8f94;
   --danger: #c45c4a;
+  --yes: #6fbf8a;
+  --no: #e08a7a;
   --muted: rgba(232, 242, 240, 0.62);
   --line: rgba(232, 242, 240, 0.12);
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
   --radius: 18px;
   --font-display: "ZCOOL XiaoWei", "Songti SC", serif;
   --font-body: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --app-height: 100dvh;
   color-scheme: dark;
 }
 
@@ -28,6 +35,7 @@ body,
 #app {
   margin: 0;
   min-height: 100%;
+  min-height: var(--app-height);
 }
 
 body {
@@ -39,19 +47,29 @@ body {
     linear-gradient(160deg, #081216 0%, #0f2228 45%, #0a171c 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 #app {
   max-width: none;
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  min-height: var(--app-height);
 }
 
 button,
 input,
 textarea {
   font: inherit;
+}
+
+button,
+.solid-btn,
+.ghost-btn,
+.tag-chip {
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 a {
@@ -61,4 +79,10 @@ a {
 
 ::selection {
   background: rgba(212, 163, 92, 0.35);
+}
+
+@media (max-width: 720px) {
+  body {
+    background-attachment: scroll;
+  }
 }

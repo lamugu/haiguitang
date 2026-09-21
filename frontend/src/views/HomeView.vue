@@ -1,13 +1,15 @@
 <template>
   <div class="page-shell home">
+    <OpeningSplash v-if="showSplash" @done="showSplash = false" />
+
     <header class="topbar page-inner fade-up">
       <div class="brand-mark">
         <img src="/assets/brand-bowl.png" alt="海龟汤" class="steam-icon" />
         <span>海龟汤</span>
       </div>
-      <button class="ghost-btn" type="button" @click="router.push('/admin')">
+      <button class="ghost-btn admin-link" type="button" @click="router.push('/admin')">
         <SettingOutlined />
-        汤库管理
+        <span class="admin-label">汤库管理</span>
       </button>
     </header>
 
@@ -40,7 +42,7 @@
         </div>
         <p class="meta"><CoffeeOutlined /> 题库现有 {{ total }} 道 · {{ tagSummary }}</p>
       </div>
-      <div class="hero-visual fade-up" style="animation-delay: 0.16s">
+      <div class="hero-visual fade-up" style="animation-delay: 0.16s" aria-hidden="true">
         <img src="/assets/hero-bg.png" alt="" class="hero-img" />
         <div class="hero-glow" />
       </div>
@@ -114,7 +116,10 @@ import {
   TagsOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
+import OpeningSplash from '../components/OpeningSplash.vue'
 import { fetchCatalog, fetchStats, startGame } from '../api'
+
+const SPLASH_KEY = 'haiguitang:splash-seen'
 
 const router = useRouter()
 const total = ref(0)
@@ -123,6 +128,13 @@ const items = ref([])
 const activeTag = ref('')
 const loading = ref(false)
 const starting = ref(false)
+const showSplash = ref(false)
+
+try {
+  showSplash.value = !sessionStorage.getItem(SPLASH_KEY)
+} catch {
+  showSplash.value = true
+}
 
 const tagSummary = computed(() => {
   if (!tags.value.length) return '分类筹备中'
@@ -185,6 +197,13 @@ const startSelected = async (puzzleIndex) => {
 }
 
 onMounted(async () => {
+  if (showSplash.value) {
+    try {
+      sessionStorage.setItem(SPLASH_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+  }
   try {
     await loadStats()
     await loadCatalog()
@@ -195,11 +214,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.home {
+  padding-bottom: calc(2rem + var(--safe-bottom));
+}
+
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 0 0.5rem;
+  padding: calc(0.85rem + var(--safe-top)) 0 0.5rem;
 }
 
 .brand-mark {
@@ -231,7 +254,7 @@ onMounted(async () => {
 
 .hero-copy h1 {
   font-family: var(--font-display);
-  font-size: clamp(3.2rem, 8vw, 5.4rem);
+  font-size: clamp(2.6rem, 8vw, 5.4rem);
   line-height: 1;
   margin: 0 0 1rem;
   letter-spacing: 0.08em;
@@ -258,6 +281,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  font-size: 0.9rem;
 }
 
 .hero-visual {
@@ -284,7 +308,7 @@ onMounted(async () => {
 }
 
 .catalog {
-  padding: 0 0 4rem;
+  padding: 0 0 2rem;
 }
 
 .section-head h2 {
@@ -322,6 +346,7 @@ onMounted(async () => {
   padding: 1rem 1.05rem 1.1rem;
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: 44px;
 }
 
 .puzzle-card:hover {
@@ -386,12 +411,69 @@ onMounted(async () => {
   .hero {
     grid-template-columns: 1fr;
     min-height: auto;
-    gap: 1.25rem;
+    gap: 1rem;
+    padding: 0.75rem 0 1.5rem;
+  }
+
+  .hero-visual {
+    order: -1;
+    min-height: 0;
   }
 
   .hero-img {
-    height: 42vw;
-    min-height: 220px;
+    height: 36vw;
+    min-height: 140px;
+    max-height: 200px;
+    border-radius: 18px;
+    opacity: 0.92;
+  }
+
+  .lead {
+    font-size: 0.95rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .cta-row .solid-btn {
+    flex: 1 1 auto;
+  }
+
+  .tag-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tag-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .puzzle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .surface {
+    -webkit-line-clamp: 3;
+    min-height: 0;
+  }
+
+  .admin-label {
+    display: none;
+  }
+
+  .admin-link {
+    padding: 0.65rem 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-visual {
+    display: none;
   }
 }
 </style>

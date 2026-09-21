@@ -1,9 +1,9 @@
 @import './base.css';
 
 .page-shell {
-  min-height: 100vh;
+  min-height: var(--app-height);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .page-shell::before {
@@ -22,6 +22,8 @@
   z-index: 1;
   width: min(1120px, calc(100% - 2rem));
   margin: 0 auto;
+  padding-left: max(0px, var(--safe-left));
+  padding-right: max(0px, var(--safe-right));
 }
 
 .brand-mark {
@@ -49,7 +51,7 @@
   border: 0;
   cursor: pointer;
   border-radius: 999px;
-  padding: 0.85rem 1.35rem;
+  padding: 0.75rem 1.25rem;
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -60,8 +62,14 @@
   box-shadow: 0 10px 30px rgba(212, 163, 92, 0.28);
 }
 
-.solid-btn:hover {
+.solid-btn:hover:not(:disabled) {
   transform: translateY(-1px);
+}
+
+.solid-btn:disabled,
+.ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .ghost-btn {
@@ -70,7 +78,7 @@
   border: 1px solid var(--line);
 }
 
-.ghost-btn:hover {
+.ghost-btn:hover:not(:disabled) {
   background: rgba(232, 242, 240, 0.12);
 }
 
@@ -78,7 +86,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: rgba(47, 111, 115, 0.28);
@@ -86,6 +94,8 @@
   font-size: 0.85rem;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tag-chip.active,
@@ -118,5 +128,21 @@
   50% {
     transform: translateY(-8px) scale(1.03);
     opacity: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-inner {
+    width: calc(100% - 1.25rem);
+  }
+
+  .page-shell::before {
+    opacity: 0.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up {
+    animation: none;
   }
 }
