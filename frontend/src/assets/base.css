@@ -1,0 +1,64 @@
+:root {
+  --ink: #0c1a1f;
+  --ink-soft: #132830;
+  --mist: #1c3a42;
+  --foam: #e8f2f0;
+  --amber: #d4a35c;
+  --amber-hot: #e8b86a;
+  --teal: #2f6f73;
+  --teal-bright: #3d8f94;
+  --danger: #c45c4a;
+  --muted: rgba(232, 242, 240, 0.62);
+  --line: rgba(232, 242, 240, 0.12);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --radius: 18px;
+  --font-display: "ZCOOL XiaoWei", "Songti SC", serif;
+  --font-body: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--foam);
+  background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(212, 163, 92, 0.16), transparent 60%),
+    radial-gradient(900px 500px at 10% 20%, rgba(61, 143, 148, 0.18), transparent 55%),
+    linear-gradient(160deg, #081216 0%, #0f2228 45%, #0a171c 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--amber);
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(212, 163, 92, 0.35);
+}

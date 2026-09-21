@@ -1,0 +1,18 @@
+# Docker
+.dockerignore
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.db
+*.db-*
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Secrets / local
+**/.env
+**/data/

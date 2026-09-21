@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: haiguitang
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: SQLITE_PATH
+        value: /app/data/puzzles.db
+      - key: STATIC_DIR
+        value: /app/static
+      - key: AI_GATEWAY_URL
+        value: https://ai-gateway.vercel.sh/v1
+      - key: AI_GATEWAY_MODEL
+        value: openai/gpt-4o-mini
+      - key: AI_GATEWAY_API_KEY
+        sync: false

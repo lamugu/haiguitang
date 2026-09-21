@@ -1,0 +1,15 @@
+.idea/
+out/
+.env
+**/.env
+**/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+.DS_Store
