@@ -31,11 +31,27 @@
           <BulbOutlined />
           提交
         </button>
-        <button class="icon-btn" type="button" aria-label="更多" @click="menuOpen = !menuOpen">
+        <button
+          ref="moreBtnRef"
+          class="icon-btn"
+          type="button"
+          aria-label="更多"
+          :aria-expanded="menuOpen"
+          @click="toggleMenu"
+        >
           <MoreOutlined />
         </button>
       </div>
-      <div v-if="menuOpen" class="menu-pop" @click.stop>
+    </header>
+
+    <Teleport to="body">
+      <div v-if="menuOpen" class="menu-mask" @click="menuOpen = false" />
+      <div
+        v-if="menuOpen"
+        class="menu-pop"
+        :style="menuStyle"
+        @click.stop
+      >
         <button type="button" :disabled="!started || ended || busy" @click="runMenu(handleNext)">
           <SwapOutlined /> 下一碗
         </button>
@@ -46,8 +62,7 @@
           <HomeOutlined /> 回主页
         </button>
       </div>
-    </header>
-    <div v-if="menuOpen" class="menu-mask" @click="menuOpen = false" />
+    </Teleport>
 
     <main class="chat-main page-inner" ref="listRef">
       <div v-if="!messages.length" class="empty">
@@ -177,7 +192,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   BulbOutlined,
@@ -211,6 +226,37 @@ const busy = ref(false)
 const menuOpen = ref(false)
 const showAnswerSheet = ref(false)
 const reveal = ref(null)
+const moreBtnRef = ref(null)
+const menuPos = ref({ top: 0, right: 12 })
+
+const menuStyle = computed(() => ({
+  top: `${menuPos.value.top}px`,
+  right: `${menuPos.value.right}px`,
+}))
+
+const placeMenu = () => {
+  const el = moreBtnRef.value
+  const node = el?.$el || el
+  if (!node?.getBoundingClientRect) {
+    menuPos.value = { top: 64, right: 12 }
+    return
+  }
+  const rect = node.getBoundingClientRect()
+  menuPos.value = {
+    top: Math.round(rect.bottom + 6),
+    right: Math.max(8, Math.round(window.innerWidth - rect.right)),
+  }
+}
+
+const toggleMenu = async () => {
+  if (menuOpen.value) {
+    menuOpen.value = false
+    return
+  }
+  menuOpen.value = true
+  await nextTick()
+  placeMenu()
+}
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -383,6 +429,13 @@ onMounted(() => {
     started.value = true
     pushReply(boot)
   }
+  window.addEventListener('resize', placeMenu)
+  window.addEventListener('scroll', placeMenu, true)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', placeMenu)
+  window.removeEventListener('scroll', placeMenu, true)
 })
 </script>
 
@@ -396,6 +449,7 @@ onMounted(() => {
 
 .chat-top {
   position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -474,19 +528,18 @@ onMounted(() => {
 .menu-mask {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 90;
+  background: transparent;
 }
 
 .menu-pop {
-  position: absolute;
-  top: calc(100% - 0.2rem);
-  right: 0;
-  z-index: 30;
-  min-width: 160px;
+  position: fixed;
+  z-index: 95;
+  min-width: 168px;
   padding: 0.35rem;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(12, 26, 31, 0.96);
+  background: rgba(12, 26, 31, 0.98);
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
