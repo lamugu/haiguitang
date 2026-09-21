@@ -119,16 +119,14 @@ async def submit_answer(room_id: int, answer: str) -> str:
     if state.ended:
         return "游戏已结束，请重新「开始」"
 
-    if config.gateway_ready():
-        # 优先语义判定；失败则回退结构化判决
-        try:
-            correct = await ai_client.check_answer(state.truth, answer)
-        except Exception as e:
-            print(f"答案判定回退：{e}")
-            p = judge_client.judge_answer(state.build_state_text(), answer)
-            correct = p >= 0.5
+    if config.llm_ready():
+        correct = await ai_client.check_answer(state.truth, answer)
+    elif config.gateway_ready():
+        # 未配原 LLM 时，用 Gateway 判决通道兜底
+        p = judge_client.judge_answer(state.build_state_text(), answer)
+        correct = p >= 0.5
     else:
-        raise RuntimeError("服务未配置：请设置 AI_GATEWAY_API_KEY")
+        raise RuntimeError("服务未配置：请至少设置 AI_API_KEY 或 AI_GATEWAY_API_KEY")
 
     if correct:
         state.record_qa(answer, "提交答案：正确")

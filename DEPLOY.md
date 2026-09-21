@@ -1,13 +1,14 @@
 # 部署到 Render
 
-仓库：https://github.com/lamugu/haiguitang
-
-## Blueprint
-
 https://render.com/deploy?repo=https://github.com/lamugu/haiguitang
 
-必填：`AI_GATEWAY_API_KEY`（Vercel AI Gateway）
+## 必填环境变量
 
-可选：`AI_GATEWAY_MODEL`（默认 `openai/gpt-4o-mini`）
+| Key | 说明 |
+|-----|------|
+| `AI_GATEWAY_API_KEY` | Vercel AI Gateway，用于**提问判决** |
+| `AI_API_KEY` | 原 LLM，用于**导入 / 提交答案** |
 
-健康检查：`/api/health`
+可选：`AI_GATEWAY_MODEL`、`AI_API_URL`、`AI_MODEL`
+
+健康检查：`/api/health`（返回 `gatewayConfigured` / `llmConfigured`）

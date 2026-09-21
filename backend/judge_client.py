@@ -1,6 +1,7 @@
 """主持人判决客户端：经 Vercel AI Gateway 的 Chat Completions。
 
-用结构化 JSON 输出替代旧的独立决策协议，统一走网关密钥。
+承担原 jev 的职责（是/否/无关 + 接近度），但走 Gateway，不走 OpenRouter Decisions。
+导入与最终答案判定见 ai_client（原 LLM）。
 """
 from __future__ import annotations
 
@@ -39,7 +40,7 @@ def verdict_text(verdict: str) -> str:
 def _ensure_ready() -> None:
     if not config.gateway_ready():
         raise RuntimeError(
-            "提问服务未配置：请设置 AI_GATEWAY_API_KEY（Vercel AI Gateway）后重启"
+            "判决服务未配置：请设置 AI_GATEWAY_API_KEY（或 JEV_API_KEY）后重启"
         )
 
 

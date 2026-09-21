@@ -1,4 +1,8 @@
-"""LLM 客户端：经 Vercel AI Gateway（导入抽取 / 答案判定）。"""
+"""原 LLM 客户端（OpenAI 兼容，默认 Atria）。
+
+职责：题库导入抽取、提交答案语义判定。
+判决提问不走这里，见 judge_client（Vercel AI Gateway）。
+"""
 from __future__ import annotations
 
 import asyncio
@@ -28,10 +32,10 @@ CHECK_SYS = "判断玩家答案是否还原了汤底的关键真相。只回复�
 
 
 async def _chat(messages: list, timeout: float = 90.0) -> str:
-    if not config.gateway_ready():
-        raise RuntimeError("AI 服务未配置：请设置 AI_GATEWAY_API_KEY")
+    if not config.llm_ready():
+        raise RuntimeError("LLM 未配置：请设置 AI_API_KEY")
     payload = {
-        "model": config.AI_GATEWAY_MODEL,
+        "model": config.AI_MODEL,
         "messages": messages,
     }
     last = None
@@ -42,32 +46,32 @@ async def _chat(messages: list, timeout: float = 90.0) -> str:
                 trust_env=False,
             ) as client:
                 resp = await client.post(
-                    f"{config.AI_GATEWAY_URL}/chat/completions",
+                    f"{config.AI_API_URL}/chat/completions",
                     json=payload,
                     headers={
-                        "Authorization": f"Bearer {config.AI_GATEWAY_API_KEY}",
+                        "Authorization": f"Bearer {config.AI_API_KEY}",
                         "Content-Type": "application/json",
                     },
                 )
             if resp.status_code in (401, 403):
-                raise RuntimeError("AI 服务鉴权失败，请检查 AI_GATEWAY_API_KEY")
+                raise RuntimeError("LLM 鉴权失败，请检查 AI_API_KEY")
             resp.raise_for_status()
             body = resp.json()
             choices = body.get("choices") or []
             if not choices:
-                raise RuntimeError("AI 返回缺少 choices")
+                raise RuntimeError("LLM 返回缺少 choices")
             content = choices[0].get("message", {}).get("content")
             if content is None:
-                raise RuntimeError("AI 返回缺少 content")
+                raise RuntimeError("LLM 返回缺少 content")
             return content
         except RuntimeError:
             raise
         except Exception as e:
             last = e
-            print(f"AI 调用失败（第 {attempt} 次）：{e}")
+            print(f"LLM 调用失败（第 {attempt} 次）：{e}")
             if attempt < config.AI_MAX_RETRIES:
                 await asyncio.sleep(2.0 * attempt)
-    raise RuntimeError(f"AI 调用多次失败：{last}")
+    raise RuntimeError(f"LLM 调用多次失败：{last}")
 
 
 async def check_answer(truth: str, player_answer: str) -> bool:

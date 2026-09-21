@@ -67,7 +67,9 @@ def _resolve_static() -> Path | None:
 def _startup() -> None:
     puzzle_bank.load()
     if not config.gateway_ready():
-        print("警告：未设置 AI_GATEWAY_API_KEY，提问/判答案将不可用")
+        print("警告：未设置 AI_GATEWAY_API_KEY（判决），提问将不可用")
+    if not config.llm_ready():
+        print("警告：未设置 AI_API_KEY（原 LLM），导入/答案语义判定将降级")
     static = _resolve_static()
     if static:
         print(f"静态前端目录：{static}")
@@ -78,9 +80,9 @@ def _startup() -> None:
 def _friendly_error(exc: Exception) -> JSONResponse:
     msg = str(exc) or "请求失败"
     lowered = msg.lower()
-    if any(x in lowered for x in ("api", "key", "model", "bearer", "gateway", "vercel")):
-        if "未配置" in msg or "ai_gateway" in lowered:
-            msg = "服务未配置，请设置 AI_GATEWAY_API_KEY 后重启后端"
+    if any(x in lowered for x in ("api", "key", "model", "bearer", "gateway", "vercel", "atria")):
+        if "未配置" in msg or "ai_gateway" in lowered or "ai_api" in lowered:
+            msg = "服务未配置，请检查 AI_GATEWAY_API_KEY / AI_API_KEY"
         else:
             msg = "服务暂时不可用，请稍后重试"
     return JSONResponse(status_code=400, content={"message": msg})
@@ -102,6 +104,7 @@ def health():
         "ok": True,
         "puzzles": puzzle_bank.size(),
         "gatewayConfigured": config.gateway_ready(),
+        "llmConfigured": config.llm_ready(),
     }
 
 
