@@ -446,14 +446,14 @@ onMounted(async () => {
 
 <style scoped>
 .admin {
-  padding-bottom: 3rem;
+  padding-bottom: calc(2rem + var(--safe-bottom));
 }
 
 .topbar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 1.2rem 0 1.4rem;
+  padding: calc(0.9rem + var(--safe-top)) 0 1.2rem;
 }
 
 .topbar .brand-mark {
