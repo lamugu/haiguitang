@@ -177,3 +177,28 @@ export async function deleteTag(name: string) {
   const { data } = await http.post('/puzzles/tags/delete', { name })
   return data as { ok: boolean; updated?: number; message?: string; tags?: TagStat[] }
 }
+
+export async function exportPuzzles() {
+  const { data } = await http.get('/puzzles/export', { timeout: 120000 })
+  return data as {
+    version: number
+    exportedAt: string
+    total: number
+    items: { surface: string; truth: string; tags: string[] }[]
+  }
+}
+
+export async function restorePuzzles(
+  items: { surface: string; truth: string; tags: string[] }[],
+  mode: 'merge' | 'replace' = 'merge',
+) {
+  const { data } = await http.post('/puzzles/restore', { items, mode }, { timeout: 120000 })
+  return data as {
+    ok: boolean
+    mode?: string
+    imported?: number
+    skipped?: number
+    total?: number
+    message?: string
+  }
+}

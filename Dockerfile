@@ -13,7 +13,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static \
-    SQLITE_PATH=/app/data/puzzles.db
+    SQLITE_PATH=/var/data/puzzles.db
 
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

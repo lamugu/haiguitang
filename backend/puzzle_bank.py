@@ -11,6 +11,7 @@ import os
 import random as _random
 import sqlite3
 import threading
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import config
@@ -160,10 +161,18 @@ def _bootstrap_from_list(items: list) -> int:
 
 def load() -> None:
     with _lock:
+        path = os.path.abspath(config.SQLITE_PATH)
+        persistent_hint = path.startswith("/var/data") or os.environ.get("RENDER_DISK_MOUNT_PATH")
+        if not persistent_hint:
+            print(
+                "⚠️ SQLite 路径不在持久盘上："
+                f"{path}。Render 免费实例每次 redeploy 会清空容器磁盘，"
+                "导入的题会丢失。请挂载 Disk 到 /var/data，或定期在管理页导出备份。"
+            )
         conn = _connect()
         count = conn.execute("SELECT COUNT(*) AS c FROM puzzles").fetchone()["c"]
         if count > 0:
-            print(f"从 SQLite {os.path.abspath(config.SQLITE_PATH)} 加载 {count} 道题")
+            print(f"从 SQLite {path} 加载 {count} 道题")
             return
 
         legacy = _legacy_json_path()
@@ -177,7 +186,7 @@ def load() -> None:
         with open(_seed_path(), encoding="utf-8") as f:
             items = json.load(f)
         added = _bootstrap_from_list(items)
-        print(f"用种子题库初始化 {added} 道题到 SQLite {os.path.abspath(config.SQLITE_PATH)}")
+        print(f"用种子题库初始化 {added} 道题到 SQLite {path}")
 
 
 def random(tag: Optional[str] = None) -> dict:
@@ -250,6 +259,74 @@ def list_all() -> List[dict]:
             "SELECT id, surface, truth, tags FROM puzzles ORDER BY id"
         ).fetchall()
         return [_row_to_puzzle(r, include_truth=True) for r in rows]
+
+
+def export_backup() -> dict:
+    """导出完整题库（含汤底），供管理员下载备份。"""
+    items = list_all()
+    return {
+        "version": 1,
+        "exportedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "total": len(items),
+        "items": [
+            {
+                "surface": it["surface"],
+                "truth": it["truth"],
+                "tags": it.get("tags") or [],
+            }
+            for it in items
+        ],
+    }
+
+
+def restore_backup(items: list, mode: str = "merge") -> dict:
+    """从备份恢复。mode=merge 只追加不存在的汤面；replace 清空后全量写入。"""
+    mode = (mode or "merge").strip().lower()
+    if mode not in ("merge", "replace"):
+        raise ValueError("mode 只能是 merge 或 replace")
+
+    normalized = []
+    for raw in items or []:
+        p = _normalize_puzzle(raw if isinstance(raw, dict) else {})
+        if not p:
+            continue
+        if not p["tags"]:
+            p["tags"] = _guess_tags(p["surface"], p["truth"])
+        normalized.append(p)
+
+    with _lock:
+        conn = _connect()
+        if mode == "replace":
+            conn.execute("DELETE FROM puzzles")
+            conn.commit()
+            added = 0
+            for p in normalized:
+                if _insert_puzzle(conn, p):
+                    added += 1
+            conn.commit()
+            return {
+                "ok": True,
+                "mode": mode,
+                "imported": added,
+                "skipped": len(normalized) - added,
+                "total": conn.execute("SELECT COUNT(*) AS c FROM puzzles").fetchone()["c"],
+            }
+
+        added = 0
+        skipped = 0
+        for p in normalized:
+            if _insert_puzzle(conn, p):
+                added += 1
+            else:
+                skipped += 1
+        conn.commit()
+        return {
+            "ok": True,
+            "mode": mode,
+            "imported": added,
+            "skipped": skipped,
+            "total": conn.execute("SELECT COUNT(*) AS c FROM puzzles").fetchone()["c"],
+        }
 
 
 def list_catalog(tag: Optional[str] = None) -> List[dict]:

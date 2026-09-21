@@ -18,8 +18,11 @@
 | `AI_API_URL` | 建议 | LLM 基址，如 `https://api.atria-asi.ai/v1`（不要带 `/chat/completions`） |
 | `AI_MODEL` | 建议 | LLM 模型名 |
 | `ADMIN_KEY` | 建议 | 汤库管理页口令 |
+| `SQLITE_PATH` | 部署必看 | 本地可用 `data/puzzles.db`；Render 请用 `/var/data/puzzles.db` 并挂 Disk |
 
 可选覆盖 jev（通常不用）：`JEV_API_URL`、`JEV_MODEL`。
+
+> **注意**：Render 免费机每次 redeploy 会清空本地 SQLite。导入后请在管理页导出备份，或升级并挂载 `/var/data` 持久盘。详见 [DEPLOY.md](./DEPLOY.md)。
 
 ## 本地运行
 

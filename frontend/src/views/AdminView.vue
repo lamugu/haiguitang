@@ -101,6 +101,41 @@
         </span>
       </section>
 
+      <section class="panel fade-up" style="animation-delay: 0.14s">
+        <h2><CloudDownloadOutlined /> 题库备份</h2>
+        <p class="desc warn">
+          Render 免费实例每次重新部署会清空磁盘，导入的汤会丢。
+          请定期导出备份；上线请挂持久盘到 <code>/var/data</code>（见 DEPLOY.md）。
+        </p>
+        <div class="tag-actions">
+          <button class="solid-btn" type="button" :disabled="backupBusy" @click="doExport">
+            <CloudDownloadOutlined />
+            {{ backupBusy && backupMode === 'export' ? '导出中…' : '导出备份 JSON' }}
+          </button>
+          <label class="ghost-btn file-btn" :class="{ disabled: backupBusy }">
+            <CloudUploadOutlined />
+            选择备份恢复
+            <input
+              type="file"
+              accept="application/json,.json"
+              :disabled="backupBusy"
+              @change="onRestoreFile"
+            />
+          </label>
+        </div>
+        <div class="manual-merge">
+          <label class="restore-mode">
+            <input v-model="restoreMode" type="radio" value="merge" />
+            合并（只追加新汤面）
+          </label>
+          <label class="restore-mode">
+            <input v-model="restoreMode" type="radio" value="replace" />
+            替换（清空后全量写入）
+          </label>
+        </div>
+        <p v-if="backupMsg" class="hint" :class="{ ok: backupOk, err: !backupOk }">{{ backupMsg }}</p>
+      </section>
+
       <section class="panel fade-up" style="animation-delay: 0.15s">
         <h2><ClusterOutlined /> 标签整理</h2>
         <p class="desc">
@@ -288,6 +323,7 @@ import { useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
   CheckOutlined,
+  CloudDownloadOutlined,
   CloudUploadOutlined,
   ClusterOutlined,
   DatabaseOutlined,
@@ -311,12 +347,14 @@ import {
   clearAdminKey,
   deletePuzzle,
   deleteTag,
+  exportPuzzles,
   fetchStats,
   getAdminKey,
   importPuzzles,
   importStatus,
   listAdminPuzzles,
   renameTag,
+  restorePuzzles,
   suggestTagCleanup,
   updatePuzzle,
   verifyAdminKey,
@@ -351,6 +389,11 @@ const tagBusyMode = ref('')
 const tagPlan = ref(null)
 const tagMsg = ref('')
 const tagMsgOk = ref(true)
+const backupBusy = ref(false)
+const backupMode = ref('')
+const backupMsg = ref('')
+const backupOk = ref(true)
+const restoreMode = ref('merge')
 
 const canAdd = computed(() => form.surface.trim() && form.truth.trim())
 const allTags = computed(() => tagStats.value.map((t) => t.name))
@@ -533,6 +576,69 @@ const applyPlan = async () => {
     tagMsg.value = e.message || '应用失败'
   } finally {
     tagBusy.value = false
+  }
+}
+
+const doExport = async () => {
+  backupBusy.value = true
+  backupMode.value = 'export'
+  backupMsg.value = ''
+  try {
+    const data = await exportPuzzles()
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = (data.exportedAt || '').replace(/[:.]/g, '-') || String(Date.now())
+    a.href = url
+    a.download = `haiguitang-backup-${stamp}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    backupOk.value = true
+    backupMsg.value = `已导出 ${data.total} 道题，请妥善保存该文件`
+  } catch (e) {
+    backupOk.value = false
+    backupMsg.value = e.message || '导出失败'
+  } finally {
+    backupBusy.value = false
+    backupMode.value = ''
+  }
+}
+
+const onRestoreFile = async (ev) => {
+  const file = ev.target?.files?.[0]
+  ev.target.value = ''
+  if (!file) return
+  const mode = restoreMode.value
+  const tip =
+    mode === 'replace'
+      ? '将清空当前题库并用备份全量覆盖，确定？'
+      : '将把备份中尚未存在的汤面合并进题库，确定？'
+  if (!confirm(tip)) return
+  backupBusy.value = true
+  backupMode.value = 'restore'
+  backupMsg.value = ''
+  try {
+    const text = await file.text()
+    const parsed = JSON.parse(text)
+    const items = Array.isArray(parsed) ? parsed : parsed.items
+    if (!Array.isArray(items) || !items.length) {
+      throw new Error('备份文件里没有 items')
+    }
+    const res = await restorePuzzles(items, mode)
+    if (res.ok === false) {
+      backupOk.value = false
+      backupMsg.value = res.message || '恢复失败'
+      return
+    }
+    backupOk.value = true
+    backupMsg.value = `恢复完成：新增 ${res.imported || 0}，跳过 ${res.skipped || 0}，题库共 ${res.total} 道`
+    await refresh()
+  } catch (e) {
+    backupOk.value = false
+    backupMsg.value = e.message || '恢复失败'
+  } finally {
+    backupBusy.value = false
+    backupMode.value = ''
   }
 }
 
@@ -751,6 +857,37 @@ onMounted(async () => {
   margin: -0.35rem 0 0.8rem;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.desc.warn {
+  color: #f0d0a8;
+}
+
+.file-btn {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.file-btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.file-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.restore-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0;
 }
 
 .tag-stats {

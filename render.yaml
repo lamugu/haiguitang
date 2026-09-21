@@ -2,12 +2,16 @@ services:
   - type: web
     name: haiguitang
     runtime: docker
-    plan: free
+    plan: starter
     region: singapore
     healthCheckPath: /api/health
+    disk:
+      name: haiguitang-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: SQLITE_PATH
-        value: /app/data/puzzles.db
+        value: /var/data/puzzles.db
       - key: STATIC_DIR
         value: /app/static
       # jev → 默认 Vercel AI Gateway，只填 key

@@ -68,6 +68,11 @@ class TagApplyIn(BaseModel):
     deletes: List[str] = Field(default_factory=list)
 
 
+class RestoreIn(BaseModel):
+    items: List[PuzzleIn]
+    mode: str = "merge"  # merge | replace
+
+
 def _resolve_static() -> Path | None:
     candidates = []
     if config.STATIC_DIR:
@@ -214,6 +219,23 @@ def catalog(tag: Optional[str] = None):
 @api.get("/puzzles/list")
 def puzzle_list(_: None = Depends(require_admin)):
     return {"total": puzzle_bank.size(), "items": puzzle_bank.list_all()}
+
+
+@api.get("/puzzles/export")
+def puzzle_export(_: None = Depends(require_admin)):
+    """下载完整题库备份（含汤底）。"""
+    return puzzle_bank.export_backup()
+
+
+@api.post("/puzzles/restore")
+def puzzle_restore(body: RestoreIn, _: None = Depends(require_admin)):
+    try:
+        return puzzle_bank.restore_backup(
+            [item.model_dump() for item in body.items],
+            mode=body.mode,
+        )
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
 
 
 @api.post("/puzzles/add", response_class=PlainTextResponse)
