@@ -53,7 +53,11 @@ JEV_API_URL = _normalize_openai_base(
     _env("JEV_API_URL") or _env("AI_GATEWAY_URL") or "https://ai-gateway.vercel.sh/v1"
 )
 JEV_MODEL = _env("JEV_MODEL") or _env("AI_GATEWAY_MODEL") or "openai/gpt-4o-mini"
-CLOSENESS_THRESHOLD = float(_env("CLOSENESS_THRESHOLD", "0.7"))
+CLOSENESS_THRESHOLD = float(_env("CLOSENESS_THRESHOLD", "0.95"))
+# 至少提问这么多次后，才允许因 closeness 自动揭底（防误判提前结束）
+CLOSENESS_MIN_QUESTIONS = int(_env("CLOSENESS_MIN_QUESTIONS", "8"))
+# 是否启用「逼近真相自动揭底」；默认关闭，只靠提交答案/退出结束
+CLOSENESS_AUTO_END = _env("CLOSENESS_AUTO_END", "0").lower() in ("1", "true", "yes", "on")
 
 # 兼容旧变量名
 AI_GATEWAY_API_KEY = JEV_API_KEY

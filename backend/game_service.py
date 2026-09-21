@@ -106,7 +106,12 @@ def do_chat(room_id: int, message: str) -> str:
     state.record_qa(message, verdict)
     state.question_count += 1
 
-    if judgment["closeness"] >= config.CLOSENESS_THRESHOLD:
+    # 默认不因 closeness 自动揭底；若开启，也需足够轮次 + 极高阈值
+    if (
+        config.CLOSENESS_AUTO_END
+        and state.question_count >= config.CLOSENESS_MIN_QUESTIONS
+        and judgment["closeness"] >= config.CLOSENESS_THRESHOLD
+    ):
         return _end_game(state, "你已经逼近了真相！")
 
     return f"{verdict}。"
