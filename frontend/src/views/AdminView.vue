@@ -101,6 +101,106 @@
         </span>
       </section>
 
+      <section class="panel fade-up" style="animation-delay: 0.15s">
+        <h2><ClusterOutlined /> 标签整理</h2>
+        <p class="desc">
+          导入带来的碎片标签（如杀妻、断脚、医院）不适合首页筛选。
+          可先「规则预览 / AI 整理」，确认后再应用；也可手动合并或删除。
+        </p>
+
+        <div class="tag-stats">
+          <button
+            v-for="t in tagStats"
+            :key="t.name"
+            type="button"
+            class="tag-stat"
+            :class="{ canonical: suggestedTags.includes(t.name) }"
+            @click="pickMergeFrom(t.name)"
+          >
+            <span>{{ t.name }}</span>
+            <em>{{ t.count }}</em>
+          </button>
+        </div>
+
+        <div class="manual-merge">
+          <select v-model="mergeFrom">
+            <option value="">合并自…</option>
+            <option v-for="t in tagStats" :key="'f-' + t.name" :value="t.name">
+              {{ t.name }}（{{ t.count }}）
+            </option>
+          </select>
+          <span class="arrow">→</span>
+          <select v-model="mergeTo">
+            <option value="">并入…</option>
+            <option v-for="t in mergeTargets" :key="'t-' + t" :value="t">{{ t }}</option>
+          </select>
+          <button
+            class="solid-btn"
+            type="button"
+            :disabled="tagBusy || !mergeFrom || !mergeTo || mergeFrom === mergeTo"
+            @click="doManualMerge"
+          >
+            合并
+          </button>
+          <button
+            class="danger-btn"
+            type="button"
+            :disabled="tagBusy || !mergeFrom"
+            @click="doManualDelete"
+          >
+            删除「{{ mergeFrom || '…' }}」
+          </button>
+        </div>
+
+        <div class="tag-actions">
+          <button class="ghost-btn" type="button" :disabled="tagBusy" @click="previewPlan('rules')">
+            <FilterOutlined />
+            {{ tagBusy && tagBusyMode === 'rules' ? '生成中…' : '规则预览' }}
+          </button>
+          <button class="solid-btn" type="button" :disabled="tagBusy" @click="previewPlan('llm')">
+            <ThunderboltOutlined />
+            {{ tagBusy && tagBusyMode === 'llm' ? 'AI 分析中…' : 'AI 整理预览' }}
+          </button>
+          <button
+            class="ghost-btn"
+            type="button"
+            :disabled="tagBusy || !tagPlan"
+            @click="applyPlan"
+          >
+            <CheckOutlined />
+            应用方案
+          </button>
+        </div>
+
+        <div v-if="tagPlan" class="plan-box">
+          <p class="plan-meta">
+            来源：{{ planSourceLabel }} · 合并 {{ planMergeCount }} 项 · 删除 {{ tagPlan.deletes.length }} 项
+          </p>
+          <div v-if="planMergeCount" class="plan-block">
+            <strong>合并</strong>
+            <ul>
+              <li v-for="(to, from) in tagPlan.merges" :key="from">
+                <code>{{ from }}</code> → <code>{{ to }}</code>
+                <button type="button" class="linkish" @click="removeMerge(from)">撤销</button>
+              </li>
+            </ul>
+          </div>
+          <div v-if="tagPlan.deletes.length" class="plan-block">
+            <strong>删除</strong>
+            <ul>
+              <li v-for="name in tagPlan.deletes" :key="name">
+                <code>{{ name }}</code>
+                <button type="button" class="linkish" @click="removeDelete(name)">撤销</button>
+              </li>
+            </ul>
+          </div>
+          <ul v-if="tagPlan.notes?.length" class="plan-notes">
+            <li v-for="(n, i) in tagPlan.notes.slice(0, 12)" :key="i">{{ n }}</li>
+          </ul>
+          <p v-if="tagMsg" class="hint" :class="{ ok: tagMsgOk, err: !tagMsgOk }">{{ tagMsg }}</p>
+        </div>
+      </section>
+
       <section class="panel list-panel fade-up" style="animation-delay: 0.24s">
         <div class="list-head">
           <h2><UnorderedListOutlined /> 题目列表</h2>
@@ -187,11 +287,14 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
+  CheckOutlined,
   CloudUploadOutlined,
+  ClusterOutlined,
   DatabaseOutlined,
   DeleteOutlined,
   EditOutlined,
   FileTextOutlined,
+  FilterOutlined,
   FormOutlined,
   ImportOutlined,
   LockOutlined,
@@ -203,14 +306,18 @@ import {
 } from '@ant-design/icons-vue'
 import {
   addPuzzle,
+  applyTagCleanup,
   batchAddPuzzles,
   clearAdminKey,
   deletePuzzle,
+  deleteTag,
   fetchStats,
   getAdminKey,
   importPuzzles,
   importStatus,
   listAdminPuzzles,
+  renameTag,
+  suggestTagCleanup,
   updatePuzzle,
   verifyAdminKey,
 } from '../api'
@@ -236,12 +343,27 @@ const importText = ref('')
 const importing = ref(false)
 const importResult = ref(null)
 const editing = ref(null)
+const tagStats = ref([])
+const mergeFrom = ref('')
+const mergeTo = ref('')
+const tagBusy = ref(false)
+const tagBusyMode = ref('')
+const tagPlan = ref(null)
+const tagMsg = ref('')
+const tagMsgOk = ref(true)
 
 const canAdd = computed(() => form.surface.trim() && form.truth.trim())
-const allTags = computed(() => {
-  const set = new Set()
-  items.value.forEach((i) => (i.tags || []).forEach((t) => set.add(t)))
+const allTags = computed(() => tagStats.value.map((t) => t.name))
+const mergeTargets = computed(() => {
+  const set = new Set([...suggestedTags.value, ...allTags.value])
   return [...set]
+})
+const planMergeCount = computed(() => Object.keys(tagPlan.value?.merges || {}).length)
+const planSourceLabel = computed(() => {
+  const s = tagPlan.value?.source
+  if (s === 'llm') return 'AI'
+  if (s === 'rules') return '规则'
+  return s || '预览'
 })
 const filteredItems = computed(() => {
   if (!filterTag.value) return items.value
@@ -291,6 +413,7 @@ const refresh = async () => {
     const [stats, list] = await Promise.all([fetchStats(), listAdminPuzzles()])
     total.value = list.total
     items.value = list.items
+    tagStats.value = stats.tags || []
     if (stats.suggestedTags?.length) suggestedTags.value = stats.suggestedTags
   } catch (e) {
     if (String(e.message || '').includes('密钥') || String(e.message || '').includes('401') || String(e.message || '').includes('无效')) {
@@ -301,6 +424,115 @@ const refresh = async () => {
     }
   } finally {
     loading.value = false
+  }
+}
+
+const pickMergeFrom = (name) => {
+  mergeFrom.value = name
+}
+
+const doManualMerge = async () => {
+  if (!mergeFrom.value || !mergeTo.value) return
+  if (!confirm(`确定将「${mergeFrom.value}」全部合并到「${mergeTo.value}」？`)) return
+  tagBusy.value = true
+  tagMsg.value = ''
+  try {
+    const res = await renameTag(mergeFrom.value, mergeTo.value)
+    if (res.ok === false) {
+      tagMsgOk.value = false
+      tagMsg.value = res.message || '合并失败'
+      return
+    }
+    tagMsgOk.value = true
+    tagMsg.value = `已更新 ${res.updated || 0} 道题`
+    mergeFrom.value = ''
+    mergeTo.value = ''
+    await refresh()
+  } catch (e) {
+    tagMsgOk.value = false
+    tagMsg.value = e.message || '合并失败'
+  } finally {
+    tagBusy.value = false
+  }
+}
+
+const doManualDelete = async () => {
+  if (!mergeFrom.value) return
+  if (!confirm(`确定从所有题目中删除标签「${mergeFrom.value}」？`)) return
+  tagBusy.value = true
+  try {
+    const res = await deleteTag(mergeFrom.value)
+    if (res.ok === false) {
+      tagMsgOk.value = false
+      tagMsg.value = res.message || '删除失败'
+      return
+    }
+    tagMsgOk.value = true
+    tagMsg.value = `已更新 ${res.updated || 0} 道题`
+    mergeFrom.value = ''
+    await refresh()
+  } catch (e) {
+    tagMsgOk.value = false
+    tagMsg.value = e.message || '删除失败'
+  } finally {
+    tagBusy.value = false
+  }
+}
+
+const previewPlan = async (mode) => {
+  tagBusy.value = true
+  tagBusyMode.value = mode
+  tagMsg.value = ''
+  try {
+    tagPlan.value = await suggestTagCleanup(mode)
+    tagMsgOk.value = true
+    tagMsg.value = '方案已生成，可逐条撤销后点「应用方案」'
+  } catch (e) {
+    tagMsgOk.value = false
+    tagMsg.value = e.message || '生成失败'
+  } finally {
+    tagBusy.value = false
+    tagBusyMode.value = ''
+  }
+}
+
+const removeMerge = (from) => {
+  if (!tagPlan.value?.merges) return
+  const next = { ...tagPlan.value.merges }
+  delete next[from]
+  tagPlan.value = { ...tagPlan.value, merges: next }
+}
+
+const removeDelete = (name) => {
+  if (!tagPlan.value) return
+  tagPlan.value = {
+    ...tagPlan.value,
+    deletes: tagPlan.value.deletes.filter((n) => n !== name),
+  }
+}
+
+const applyPlan = async () => {
+  if (!tagPlan.value) return
+  const merges = tagPlan.value.merges || {}
+  const deletes = tagPlan.value.deletes || []
+  if (!Object.keys(merges).length && !deletes.length) {
+    tagMsgOk.value = false
+    tagMsg.value = '方案为空'
+    return
+  }
+  if (!confirm(`应用整理？将合并 ${Object.keys(merges).length} 项、删除 ${deletes.length} 项。`)) return
+  tagBusy.value = true
+  try {
+    const res = await applyTagCleanup({ merges, deletes })
+    tagMsgOk.value = true
+    tagMsg.value = `已更新 ${res.updated || 0} 道题`
+    tagPlan.value = null
+    await refresh()
+  } catch (e) {
+    tagMsgOk.value = false
+    tagMsg.value = e.message || '应用失败'
+  } finally {
+    tagBusy.value = false
   }
 }
 
@@ -519,6 +751,106 @@ onMounted(async () => {
   margin: -0.35rem 0 0.8rem;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.tag-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tag-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  background: rgba(47, 111, 115, 0.2);
+  color: var(--foam);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.tag-stat.canonical {
+  border-color: rgba(212, 163, 92, 0.45);
+  background: rgba(212, 163, 92, 0.12);
+}
+
+.tag-stat em {
+  font-style: normal;
+  color: var(--amber);
+  font-size: 0.8rem;
+}
+
+.manual-merge,
+.tag-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.manual-merge select {
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(8, 18, 22, 0.75);
+  color: var(--foam);
+  padding: 0.45rem 0.85rem;
+  max-width: 100%;
+}
+
+.manual-merge .arrow {
+  color: var(--muted);
+}
+
+.plan-box {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 18, 22, 0.45);
+  padding: 0.85rem 1rem;
+}
+
+.plan-meta {
+  margin: 0 0 0.65rem;
+  color: var(--amber);
+  font-size: 0.9rem;
+}
+
+.plan-block {
+  margin-bottom: 0.65rem;
+}
+
+.plan-block ul,
+.plan-notes {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.plan-block code {
+  color: var(--foam);
+}
+
+.linkish {
+  border: 0;
+  background: transparent;
+  color: var(--amber);
+  cursor: pointer;
+  margin-left: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.plan-box .hint {
+  margin-left: 0;
+  display: block;
+  margin-top: 0.5rem;
 }
 
 .form-grid {

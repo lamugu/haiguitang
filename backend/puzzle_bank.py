@@ -292,6 +292,75 @@ def delete_at(index: int) -> bool:
         return cur.rowcount > 0
 
 
+def _remap_tags(tags: list, merges: dict[str, str], deletes: set[str]) -> list:
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in tags:
+        name = merges.get(t, t)
+        if name in deletes or not name:
+            continue
+        # 链式合并：A→B、B→C
+        guard = 0
+        while name in merges and guard < 8:
+            nxt = merges[name]
+            if nxt == name:
+                break
+            name = nxt
+            guard += 1
+        if name in deletes or not name:
+            continue
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def apply_tag_ops(merges: dict | None = None, deletes: list | None = None) -> dict:
+    """批量合并/删除标签。merges: {旧名: 新名}；deletes: 要移除的标签名。"""
+    merge_map = {str(k).strip(): str(v).strip() for k, v in (merges or {}).items() if str(k).strip() and str(v).strip()}
+    delete_set = {str(t).strip() for t in (deletes or []) if str(t).strip()}
+    # 合并目标若同时在删除列表，以合并为准（删的是源）
+    delete_set -= set(merge_map.values())
+    if not merge_map and not delete_set:
+        return {"ok": True, "updated": 0, "tags": list_tags()}
+
+    updated = 0
+    with _lock:
+        conn = _connect()
+        rows = conn.execute("SELECT id, surface, truth, tags FROM puzzles").fetchall()
+        for row in rows:
+            old = _tags_from_db(row["tags"])
+            new = _remap_tags(old, merge_map, delete_set)
+            if not new:
+                new = _guess_tags(row["surface"], row["truth"])
+            if new == old:
+                continue
+            conn.execute(
+                "UPDATE puzzles SET tags = ? WHERE id = ?",
+                (_tags_to_db(new), row["id"]),
+            )
+            updated += 1
+        conn.commit()
+    return {"ok": True, "updated": updated, "tags": list_tags()}
+
+
+def rename_tag(old: str, new: str) -> dict:
+    old = (old or "").strip()
+    new = (new or "").strip()
+    if not old or not new:
+        raise ValueError("旧标签与新标签均不能为空")
+    if old == new:
+        return {"ok": True, "updated": 0, "tags": list_tags()}
+    return apply_tag_ops({old: new}, [])
+
+
+def delete_tag(name: str) -> dict:
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("标签名不能为空")
+    return apply_tag_ops({}, [name])
+
+
 def add_one(surface: str, truth: str, tags=None) -> bool:
     p = _normalize_puzzle({"surface": surface, "truth": truth, "tags": tags})
     if not p:

@@ -18,7 +18,9 @@ EXTRACT_SYS = (
     "每个元素字段：\n"
     "- surface：汤面，题目的故事表面描述\n"
     "- truth：汤底，故事的真相/答案\n"
-    "- tags：字符串数组，从「经典/悬疑/惊悚/温情/烧脑/奇幻/日常」中选 1~3 个最合适的分类；"
+    "- tags：字符串数组，只从下列标准分类中选 1~3 个："
+    "经典/悬疑/惊悚/温情/烧脑/奇幻/日常/本格/变格/红汤/清汤/黑汤/荒诞/搞笑；"
+    "禁止使用过细剧情词（如杀妻、断脚、医院、洗衣机）、禁止未揭晓/原创等元标签；"
     "若原文无分类信息，按内容自行判断，不要留空\n"
     "要求：只从文本中提取汤面与汤底，不要编造故事；保留原文语言和措辞；"
     "文本里的引号一律用中文全角引号「」，避免破坏 JSON；"
@@ -29,6 +31,31 @@ FIELD = re.compile(r'"(surface|truth)"\s*:\s*"((?:[^"]|"(?!\s*[,}]))*)"')
 TAGS_FIELD = re.compile(r'"tags"\s*:\s*\[([^\]]*)\]')
 
 CHECK_SYS = "判断玩家答案是否还原了汤底的关键真相。只回复【答案正确】或【答案错误】。"
+
+TAG_CLEANUP_SYS = (
+    "你是海龟汤题库的标签整理助手。玩家首页要用标签筛选，标签必须少而清晰。"
+    "只输出一行 JSON，不要 markdown："
+    '{"merges":{"旧标签":"标准标签"},"deletes":["要删除的标签"],"notes":["简短说明"]}'
+    "规则："
+    "1) merges 把过细/同义标签并入标准分类；deletes 去掉无用元标签与碎片标签；"
+    "2) 标准分类仅限：{canonical}；"
+    "3) 不要编造题库里不存在的旧标签名；"
+    "4) 不要把标准分类互相乱并（例如不要把「温情」并成「惊悚」）；"
+    "5) 剧情碎片（杀妻、断脚、医院、洗衣机等）应删除或并入粗分类；"
+    "6) 未揭晓/未详/原创/留题 一类元信息应删除。"
+)
+
+
+async def suggest_tag_cleanup(tags: list[dict], canonical: list[str]) -> str:
+    canon = " / ".join(canonical)
+    lines = [f"- {t['name']}（{t['count']}）" for t in tags]
+    return await _chat([
+        {"role": "system", "content": TAG_CLEANUP_SYS.replace("{canonical}", canon)},
+        {
+            "role": "user",
+            "content": "当前标签统计：\n" + "\n".join(lines) + "\n请给出整理方案。",
+        },
+    ], timeout=120.0)
 
 
 async def _chat(messages: list, timeout: float = 90.0) -> str:

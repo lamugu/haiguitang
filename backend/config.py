@@ -76,7 +76,22 @@ SQLITE_PATH = _env("SQLITE_PATH", "data/puzzles.db")
 STATIC_DIR = _env("STATIC_DIR", "")
 ADMIN_KEY = _env("ADMIN_KEY")
 
-DEFAULT_TAGS = ("经典", "悬疑", "惊悚", "温情", "烧脑", "奇幻", "日常")
+DEFAULT_TAGS = (
+    "经典",
+    "悬疑",
+    "惊悚",
+    "温情",
+    "烧脑",
+    "奇幻",
+    "日常",
+    "本格",
+    "变格",
+    "红汤",
+    "清汤",
+    "黑汤",
+    "荒诞",
+    "搞笑",
+)
 
 
 def gateway_ready() -> bool:

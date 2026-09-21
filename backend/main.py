@@ -19,6 +19,7 @@ import config
 import game_service
 import puzzle_bank
 import puzzle_import
+import tag_cleanup
 from admin_auth import require_admin
 
 app = FastAPI(title="海龟汤", docs_url=None, redoc_url=None, openapi_url=None)
@@ -49,6 +50,22 @@ class PuzzleUpdateIn(BaseModel):
     surface: Optional[str] = None
     truth: Optional[str] = None
     tags: Optional[List[str]] = None
+
+
+class TagRenameIn(BaseModel):
+    source: str = Field(..., alias="from")
+    target: str = Field(..., alias="to")
+
+    model_config = {"populate_by_name": True}
+
+
+class TagDeleteIn(BaseModel):
+    name: str
+
+
+class TagApplyIn(BaseModel):
+    merges: dict[str, str] = Field(default_factory=dict)
+    deletes: List[str] = Field(default_factory=list)
 
 
 def _resolve_static() -> Path | None:
@@ -239,6 +256,40 @@ def puzzle_delete(index: int, _: None = Depends(require_admin)):
     if not puzzle_bank.delete_at(index):
         return {"ok": False, "message": "索引不存在"}
     return {"ok": True, "total": puzzle_bank.size()}
+
+
+@api.post("/puzzles/tags/rename")
+def tag_rename(body: TagRenameIn, _: None = Depends(require_admin)):
+    try:
+        result = puzzle_bank.rename_tag(body.source, body.target)
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+    return result
+
+
+@api.post("/puzzles/tags/delete")
+def tag_delete(body: TagDeleteIn, _: None = Depends(require_admin)):
+    try:
+        result = puzzle_bank.delete_tag(body.name)
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+    return result
+
+
+@api.post("/puzzles/tags/suggest")
+async def tag_suggest(
+    mode: str = Query("llm"),
+    _: None = Depends(require_admin),
+):
+    """预览整理方案，不改库。mode=llm|rules"""
+    if mode == "rules":
+        return tag_cleanup.rule_plan()
+    return await tag_cleanup.llm_plan()
+
+
+@api.post("/puzzles/tags/apply")
+def tag_apply(body: TagApplyIn, _: None = Depends(require_admin)):
+    return puzzle_bank.apply_tag_ops(body.merges, body.deletes)
 
 
 @api.post("/admin/verify")

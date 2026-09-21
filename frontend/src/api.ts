@@ -146,3 +146,34 @@ export async function importStatus(jobId: string) {
     error: string
   }
 }
+
+export type TagPlan = {
+  merges: Record<string, string>
+  deletes: string[]
+  canonical: string[]
+  notes: string[]
+  source?: string
+}
+
+export async function suggestTagCleanup(mode: 'llm' | 'rules' = 'llm') {
+  const { data } = await http.post('/puzzles/tags/suggest', null, {
+    params: { mode },
+    timeout: 120000,
+  })
+  return data as TagPlan
+}
+
+export async function applyTagCleanup(payload: { merges: Record<string, string>; deletes: string[] }) {
+  const { data } = await http.post('/puzzles/tags/apply', payload)
+  return data as { ok: boolean; updated: number; tags: TagStat[] }
+}
+
+export async function renameTag(from: string, to: string) {
+  const { data } = await http.post('/puzzles/tags/rename', { from, to })
+  return data as { ok: boolean; updated?: number; message?: string; tags?: TagStat[] }
+}
+
+export async function deleteTag(name: string) {
+  const { data } = await http.post('/puzzles/tags/delete', { name })
+  return data as { ok: boolean; updated?: number; message?: string; tags?: TagStat[] }
+}
