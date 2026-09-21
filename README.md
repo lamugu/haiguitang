@@ -6,25 +6,27 @@
 
 - 前端：Vue 3 + Vite
 - 后端：FastAPI + SQLite
-- **判决提问**（原 jev 职责）：[Vercel AI Gateway](https://vercel.com/docs/ai-gateway)
-- **导入 / 提交答案**：原 LLM（OpenAI 兼容，默认 Atria）
+- **判决提问（jev）**：默认 [Vercel AI Gateway](https://vercel.com/docs/ai-gateway)（一般只配 key）
+- **导入 / 提交答案**：任意 OpenAI 兼容 `/chat/completions`
 
 ## 环境变量
 
-| 变量 | 用途 |
-|------|------|
-| `AI_GATEWAY_API_KEY` | 判决提问（也可用别名 `JEV_API_KEY`） |
-| `AI_GATEWAY_MODEL` | Gateway 模型，默认 `openai/gpt-4o-mini` |
-| `AI_API_KEY` | 原 LLM：导入抽取、答案语义判定 |
-| `AI_API_URL` / `AI_MODEL` | 原 LLM 端点与模型名 |
-| `ADMIN_KEY` | 汤库管理页口令（看汤底 / 增删导入） |
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `JEV_API_KEY` | 是 | 判决用。默认走 `https://ai-gateway.vercel.sh/v1` |
+| `AI_API_KEY` | 建议 | LLM key |
+| `AI_API_URL` | 建议 | LLM 基址，如 `https://api.atria-asi.ai/v1`（不要带 `/chat/completions`） |
+| `AI_MODEL` | 建议 | LLM 模型名 |
+| `ADMIN_KEY` | 建议 | 汤库管理页口令 |
+
+可选覆盖 jev（通常不用）：`JEV_API_URL`、`JEV_MODEL`。
 
 ## 本地运行
 
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env   # 分别填写 Gateway key 与 LLM key
+cp .env.example .env
 python main.py
 
 cd frontend

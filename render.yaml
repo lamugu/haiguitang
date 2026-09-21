@@ -10,18 +10,14 @@ services:
         value: /app/data/puzzles.db
       - key: STATIC_DIR
         value: /app/static
-      # 判决 → Vercel AI Gateway
-      - key: AI_GATEWAY_URL
-        value: https://ai-gateway.vercel.sh/v1
-      - key: AI_GATEWAY_MODEL
-        value: openai/gpt-4o-mini
-      - key: AI_GATEWAY_API_KEY
+      # jev → 默认 Vercel AI Gateway，只填 key
+      - key: JEV_API_KEY
         sync: false
-      # 原 LLM（导入 / 判答案）
+      # LLM → 任意 chat/completions
       - key: AI_API_URL
-        value: https://api.atria-asi.ai/v1
+        sync: false
       - key: AI_MODEL
-        value: Atria-Dawn-Preview
+        sync: false
       - key: AI_API_KEY
         sync: false
       - key: ADMIN_KEY

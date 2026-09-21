@@ -1,12 +1,13 @@
 """配置：全部从环境变量读取，密钥不进代码、不回传前端。
 
 两套独立服务：
-- 主持人判决（原 jev 职责）→ Vercel AI Gateway
-- 导入抽取 / 提交答案语义判定 → 原 LLM（OpenAI 兼容，如 Atria）
+- 判决提问（jev）：默认 Vercel AI Gateway，通常只需 JEV_API_KEY
+- 导入 / 提交答案：任意 OpenAI 兼容 chat/completions（AI_API_URL + AI_MODEL + AI_API_KEY）
 """
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
@@ -32,20 +33,36 @@ def _env(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
 
 
-# ---------- 判决（jev 职责）→ Vercel AI Gateway ----------
-AI_GATEWAY_URL = _env("AI_GATEWAY_URL", "https://ai-gateway.vercel.sh/v1").rstrip("/")
-# 兼容旧名 JEV_API_KEY：有人仍把判决密钥叫 jev key
-AI_GATEWAY_API_KEY = (
-    _env("AI_GATEWAY_API_KEY")
+def _normalize_openai_base(url: str) -> str:
+    """接受根地址或误贴的 .../chat/completions，统一成 .../v1 基址。"""
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return u
+    u = re.sub(r"/chat/completions/?$", "", u, flags=re.I)
+    return u.rstrip("/")
+
+
+# ---------- jev 判决 → 默认 Vercel AI Gateway（只需 key）----------
+JEV_API_KEY = (
+    _env("JEV_API_KEY")
+    or _env("AI_GATEWAY_API_KEY")
     or _env("VERCEL_AI_GATEWAY_API_KEY")
-    or _env("JEV_API_KEY")
 )
-AI_GATEWAY_MODEL = _env("AI_GATEWAY_MODEL", "openai/gpt-4o-mini")
+# 一般不用改；需要时再覆盖
+JEV_API_URL = _normalize_openai_base(
+    _env("JEV_API_URL") or _env("AI_GATEWAY_URL") or "https://ai-gateway.vercel.sh/v1"
+)
+JEV_MODEL = _env("JEV_MODEL") or _env("AI_GATEWAY_MODEL") or "openai/gpt-4o-mini"
 CLOSENESS_THRESHOLD = float(_env("CLOSENESS_THRESHOLD", "0.7"))
 
-# ---------- 原 LLM（导入 / 判答案）----------
+# 兼容旧变量名
+AI_GATEWAY_API_KEY = JEV_API_KEY
+AI_GATEWAY_URL = JEV_API_URL
+AI_GATEWAY_MODEL = JEV_MODEL
+
+# ---------- LLM：OpenAI 兼容 chat/completions（URL / model / key 均可配）----------
 AI_API_KEY = _env("AI_API_KEY")
-AI_API_URL = _env("AI_API_URL", "https://api.atria-asi.ai/v1").rstrip("/")
+AI_API_URL = _normalize_openai_base(_env("AI_API_URL", "https://api.atria-asi.ai/v1"))
 AI_MODEL = _env("AI_MODEL", "Atria-Dawn-Preview")
 AI_MAX_RETRIES = int(_env("AI_MAX_RETRIES", "4"))
 
@@ -53,20 +70,18 @@ PLACEHOLDER_KEY = "填写你自己的 API Key"
 
 SQLITE_PATH = _env("SQLITE_PATH", "data/puzzles.db")
 STATIC_DIR = _env("STATIC_DIR", "")
-
-# 管理端口令（汤库增删改 / 含汤底列表 / 导入）
 ADMIN_KEY = _env("ADMIN_KEY")
 
 DEFAULT_TAGS = ("经典", "悬疑", "惊悚", "温情", "烧脑", "奇幻", "日常")
 
 
 def gateway_ready() -> bool:
-    """判决通道是否可用。"""
-    return bool(AI_GATEWAY_API_KEY)
+    """jev / Gateway 判决是否可用。"""
+    return bool(JEV_API_KEY)
 
 
 def llm_ready() -> bool:
-    """原 LLM 是否可用（导入 + 提交答案）。"""
+    """LLM（导入 + 提交答案）是否可用。"""
     return bool(AI_API_KEY) and AI_API_KEY != PLACEHOLDER_KEY
 
 

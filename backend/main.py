@@ -68,12 +68,11 @@ def _resolve_static() -> Path | None:
 def _startup() -> None:
     puzzle_bank.load()
     if not config.gateway_ready():
-        print("警告：未设置 AI_GATEWAY_API_KEY（判决），提问将不可用")
+        print("警告：未设置 JEV_API_KEY（判决），提问将不可用")
     if not config.llm_ready():
-        print("警告：未设置 AI_API_KEY（原 LLM），导入/答案语义判定将降级")
+        print("警告：未设置 AI_API_KEY（LLM），导入/答案语义判定将降级")
     if not config.admin_ready():
-        print("警告：未设置 ADMIN_KEY，汤库管理接口将拒绝访问")
-    static = _resolve_static()
+        print("警告：未设置 ADMIN_KEY，汤库管理接口将拒绝访问")    static = _resolve_static()
     if static:
         print(f"静态前端目录：{static}")
     else:

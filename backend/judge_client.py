@@ -39,15 +39,13 @@ def verdict_text(verdict: str) -> str:
 
 def _ensure_ready() -> None:
     if not config.gateway_ready():
-        raise RuntimeError(
-            "判决服务未配置：请设置 AI_GATEWAY_API_KEY（或 JEV_API_KEY）后重启"
-        )
+        raise RuntimeError("判决服务未配置：请设置 JEV_API_KEY 后重启")
 
 
 def _chat(messages: list[dict], timeout: float = 90.0) -> str:
     _ensure_ready()
     payload = {
-        "model": config.AI_GATEWAY_MODEL,
+        "model": config.JEV_MODEL,
         "messages": messages,
         "temperature": 0,
     }
@@ -56,15 +54,15 @@ def _chat(messages: list[dict], timeout: float = 90.0) -> str:
         try:
             with httpx.Client(timeout=httpx.Timeout(timeout, connect=10.0), trust_env=False) as client:
                 resp = client.post(
-                    f"{config.AI_GATEWAY_URL}/chat/completions",
+                    f"{config.JEV_API_URL}/chat/completions",
                     json=payload,
                     headers={
-                        "Authorization": f"Bearer {config.AI_GATEWAY_API_KEY}",
+                        "Authorization": f"Bearer {config.JEV_API_KEY}",
                         "Content-Type": "application/json",
                     },
                 )
             if resp.status_code in (401, 403):
-                raise RuntimeError("提问服务鉴权失败，请检查 AI_GATEWAY_API_KEY")
+                raise RuntimeError("提问服务鉴权失败，请检查 JEV_API_KEY")
             if resp.status_code >= 400:
                 raise RuntimeError(f"提问服务暂时不可用（HTTP {resp.status_code}）")
             body = resp.json()
