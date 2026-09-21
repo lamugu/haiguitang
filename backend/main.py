@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +19,7 @@ import config
 import game_service
 import puzzle_bank
 import puzzle_import
+from admin_auth import require_admin
 
 app = FastAPI(title="海龟汤", docs_url=None, redoc_url=None, openapi_url=None)
 api = FastAPI(root_path="/api", docs_url=None, redoc_url=None, openapi_url=None)
@@ -70,6 +71,8 @@ def _startup() -> None:
         print("警告：未设置 AI_GATEWAY_API_KEY（判决），提问将不可用")
     if not config.llm_ready():
         print("警告：未设置 AI_API_KEY（原 LLM），导入/答案语义判定将降级")
+    if not config.admin_ready():
+        print("警告：未设置 ADMIN_KEY，汤库管理接口将拒绝访问")
     static = _resolve_static()
     if static:
         print(f"静态前端目录：{static}")
@@ -78,14 +81,28 @@ def _startup() -> None:
 
 
 def _friendly_error(exc: Exception) -> JSONResponse:
+    if isinstance(exc, HTTPException):
+        detail = exc.detail if isinstance(exc.detail, str) else "请求失败"
+        return JSONResponse(status_code=exc.status_code, content={"message": detail})
+
     msg = str(exc) or "请求失败"
     lowered = msg.lower()
     if any(x in lowered for x in ("api", "key", "model", "bearer", "gateway", "vercel", "atria")):
-        if "未配置" in msg or "ai_gateway" in lowered or "ai_api" in lowered:
-            msg = "服务未配置，请检查 AI_GATEWAY_API_KEY / AI_API_KEY"
+        if "未配置" in msg or "ai_gateway" in lowered or "ai_api" in lowered or "admin" in lowered:
+            msg = "服务未配置或鉴权失败，请检查密钥"
         else:
             msg = "服务暂时不可用，请稍后重试"
     return JSONResponse(status_code=400, content={"message": msg})
+
+
+@app.exception_handler(HTTPException)
+async def _on_http_error_app(request: Request, exc: HTTPException):
+    return _friendly_error(exc)
+
+
+@api.exception_handler(HTTPException)
+async def _on_http_error_api(request: Request, exc: HTTPException):
+    return _friendly_error(exc)
 
 
 @app.exception_handler(Exception)
@@ -105,6 +122,7 @@ def health():
         "puzzles": puzzle_bank.size(),
         "gatewayConfigured": config.gateway_ready(),
         "llmConfigured": config.llm_ready(),
+        "adminConfigured": config.admin_ready(),
     }
 
 
@@ -138,12 +156,15 @@ def rooms():
 
 
 @api.post("/puzzles/import")
-def import_puzzles(text: str = Query(...)):
+def import_puzzles(text: str = Query(...), _: None = Depends(require_admin)):
     return puzzle_import.submit(text)
 
 
 @api.get("/puzzles/import/status")
-def import_status(job_id: str = Query(..., alias="jobId")):
+def import_status(
+    job_id: str = Query(..., alias="jobId"),
+    _: None = Depends(require_admin),
+):
     job = puzzle_import.get_job(job_id)
     if job is None:
         raise ValueError("任务不存在或已过期")
@@ -174,7 +195,7 @@ def catalog(tag: Optional[str] = None):
 
 
 @api.get("/puzzles/list")
-def puzzle_list():
+def puzzle_list(_: None = Depends(require_admin)):
     return {"total": puzzle_bank.size(), "items": puzzle_bank.list_all()}
 
 
@@ -183,6 +204,7 @@ def puzzle_add(
     surface: str = Query(...),
     truth: str = Query(...),
     tags: Optional[str] = Query(None),
+    _: None = Depends(require_admin),
 ):
     tag_list = [t.strip() for t in (tags or "").replace("，", ",").split(",") if t.strip()]
     if puzzle_bank.add_one(surface, truth, tag_list):
@@ -191,7 +213,7 @@ def puzzle_add(
 
 
 @api.post("/puzzles/add/json")
-def puzzle_add_json(body: PuzzleIn):
+def puzzle_add_json(body: PuzzleIn, _: None = Depends(require_admin)):
     ok = puzzle_bank.add_one(body.surface, body.truth, body.tags)
     if not ok:
         return {"ok": False, "message": "添加失败：汤面或汤底为空，或汤面已存在"}
@@ -199,13 +221,13 @@ def puzzle_add_json(body: PuzzleIn):
 
 
 @api.post("/puzzles/batch")
-def puzzle_batch(body: PuzzleBatchIn):
+def puzzle_batch(body: PuzzleBatchIn, _: None = Depends(require_admin)):
     added = puzzle_bank.add_all([item.model_dump() for item in body.items])
     return {"ok": True, "imported": added, "total": puzzle_bank.size()}
 
 
 @api.put("/puzzles/{index}")
-def puzzle_update(index: int, body: PuzzleUpdateIn):
+def puzzle_update(index: int, body: PuzzleUpdateIn, _: None = Depends(require_admin)):
     ok = puzzle_bank.update_at(index, body.surface, body.truth, body.tags)
     if not ok:
         return {"ok": False, "message": "更新失败"}
@@ -213,10 +235,15 @@ def puzzle_update(index: int, body: PuzzleUpdateIn):
 
 
 @api.delete("/puzzles/{index}")
-def puzzle_delete(index: int):
+def puzzle_delete(index: int, _: None = Depends(require_admin)):
     if not puzzle_bank.delete_at(index):
         return {"ok": False, "message": "索引不存在"}
     return {"ok": True, "total": puzzle_bank.size()}
+
+
+@api.post("/admin/verify")
+def admin_verify(_: None = Depends(require_admin)):
+    return {"ok": True}
 
 
 app.mount("/api", api)

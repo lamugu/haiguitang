@@ -10,12 +10,31 @@
           <img src="/assets/brand-bowl.png" alt="" />
           <span>汤库管理</span>
         </div>
-        <div class="stat">
+        <div class="stat" v-if="authed">
           <DatabaseOutlined />
           共 {{ total }} 道
+          <button class="ghost-btn logout" type="button" @click="logout">退出</button>
         </div>
       </header>
 
+      <section v-if="!authed" class="panel login-panel fade-up">
+        <h2><LockOutlined /> 管理员登录</h2>
+        <p class="desc">管理端需要密钥。密钥配置在服务端环境变量 <code>ADMIN_KEY</code>。</p>
+        <div class="login-row">
+          <input
+            v-model="adminKeyInput"
+            type="password"
+            placeholder="输入 ADMIN_KEY"
+            @keydown.enter.prevent="doLogin"
+          />
+          <button class="solid-btn" type="button" :disabled="loggingIn || !adminKeyInput.trim()" @click="doLogin">
+            {{ loggingIn ? '验证中…' : '进入' }}
+          </button>
+        </div>
+        <p v-if="loginError" class="hint err">{{ loginError }}</p>
+      </section>
+
+      <template v-else>
       <section class="panel fade-up" style="animation-delay: 0.06s">
         <h2><FormOutlined /> 新增单条</h2>
         <div class="form-grid">
@@ -128,6 +147,7 @@
           </article>
         </div>
       </section>
+      </template>
     </div>
 
     <div v-if="editing" class="modal" @click.self="editing = null">
@@ -174,6 +194,7 @@ import {
   FileTextOutlined,
   FormOutlined,
   ImportOutlined,
+  LockOutlined,
   PlusOutlined,
   ReloadOutlined,
   TagsOutlined,
@@ -183,15 +204,22 @@ import {
 import {
   addPuzzle,
   batchAddPuzzles,
+  clearAdminKey,
   deletePuzzle,
   fetchStats,
+  getAdminKey,
   importPuzzles,
   importStatus,
   listAdminPuzzles,
   updatePuzzle,
+  verifyAdminKey,
 } from '../api'
 
 const router = useRouter()
+const authed = ref(false)
+const adminKeyInput = ref('')
+const loggingIn = ref(false)
+const loginError = ref('')
 const total = ref(0)
 const items = ref([])
 const suggestedTags = ref(['经典', '悬疑', '惊悚', '温情', '烧脑', '奇幻', '日常'])
@@ -234,6 +262,29 @@ const addCustom = (list) => {
   customTag.value = ''
 }
 
+const doLogin = async () => {
+  loggingIn.value = true
+  loginError.value = ''
+  try {
+    await verifyAdminKey(adminKeyInput.value.trim())
+    authed.value = true
+    adminKeyInput.value = ''
+    await refresh()
+  } catch (e) {
+    loginError.value = e.message || '密钥无效'
+    authed.value = false
+  } finally {
+    loggingIn.value = false
+  }
+}
+
+const logout = () => {
+  clearAdminKey()
+  authed.value = false
+  items.value = []
+  total.value = 0
+}
+
 const refresh = async () => {
   loading.value = true
   try {
@@ -242,7 +293,12 @@ const refresh = async () => {
     items.value = list.items
     if (stats.suggestedTags?.length) suggestedTags.value = stats.suggestedTags
   } catch (e) {
-    alert(e.message || '加载失败')
+    if (String(e.message || '').includes('密钥') || String(e.message || '').includes('401') || String(e.message || '').includes('无效')) {
+      logout()
+      loginError.value = e.message || '请重新登录'
+    } else {
+      alert(e.message || '加载失败')
+    }
   } finally {
     loading.value = false
   }
@@ -374,7 +430,18 @@ const doDelete = async (index) => {
   }
 }
 
-onMounted(refresh)
+onMounted(async () => {
+  if (getAdminKey()) {
+    try {
+      await verifyAdminKey(getAdminKey())
+      authed.value = true
+      await refresh()
+    } catch {
+      clearAdminKey()
+      authed.value = false
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -400,6 +467,35 @@ onMounted(refresh)
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.stat .logout {
+  margin-left: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.login-panel .login-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.login-panel input[type='password'] {
+  flex: 1;
+  min-width: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(232, 242, 240, 0.04);
+  color: var(--foam);
+  padding: 0.75rem 0.85rem;
+}
+
+.hint.err {
+  color: #f0b2a8;
+  margin-left: 0;
+  margin-top: 0.6rem;
+  display: block;
 }
 
 .panel {

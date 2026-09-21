@@ -54,6 +54,9 @@ PLACEHOLDER_KEY = "填写你自己的 API Key"
 SQLITE_PATH = _env("SQLITE_PATH", "data/puzzles.db")
 STATIC_DIR = _env("STATIC_DIR", "")
 
+# 管理端口令（汤库增删改 / 含汤底列表 / 导入）
+ADMIN_KEY = _env("ADMIN_KEY")
+
 DEFAULT_TAGS = ("经典", "悬疑", "惊悚", "温情", "烧脑", "奇幻", "日常")
 
 
@@ -65,3 +68,7 @@ def gateway_ready() -> bool:
 def llm_ready() -> bool:
     """原 LLM 是否可用（导入 + 提交答案）。"""
     return bool(AI_API_KEY) and AI_API_KEY != PLACEHOLDER_KEY
+
+
+def admin_ready() -> bool:
+    return bool(ADMIN_KEY)

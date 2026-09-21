@@ -17,6 +17,7 @@
 | `AI_GATEWAY_MODEL` | Gateway 模型，默认 `openai/gpt-4o-mini` |
 | `AI_API_KEY` | 原 LLM：导入抽取、答案语义判定 |
 | `AI_API_URL` / `AI_MODEL` | 原 LLM 端点与模型名 |
+| `ADMIN_KEY` | 汤库管理页口令（看汤底 / 增删导入） |
 
 ## 本地运行
 

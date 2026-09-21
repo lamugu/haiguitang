@@ -1,15 +1,26 @@
 import axios from 'axios'
 
+const ADMIN_KEY_STORAGE = 'haiguitang:adminKey'
+
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
   timeout: 60000,
 })
 
+http.interceptors.request.use((config) => {
+  const key = sessionStorage.getItem(ADMIN_KEY_STORAGE)
+  if (key) {
+    config.headers = config.headers || {}
+    config.headers['X-Admin-Key'] = key
+  }
+  return config
+})
+
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    const message = err?.response?.data?.message || err.message || '请求失败'
-    return Promise.reject(new Error(message))
+    const message = err?.response?.data?.message || err?.response?.data?.detail || err.message || '请求失败'
+    return Promise.reject(new Error(typeof message === 'string' ? message : '请求失败'))
   },
 )
 
@@ -22,6 +33,29 @@ export type CatalogItem = {
 }
 
 export type AdminPuzzle = CatalogItem & { truth: string }
+
+export function getAdminKey() {
+  return sessionStorage.getItem(ADMIN_KEY_STORAGE) || ''
+}
+
+export function setAdminKey(key: string) {
+  sessionStorage.setItem(ADMIN_KEY_STORAGE, key)
+}
+
+export function clearAdminKey() {
+  sessionStorage.removeItem(ADMIN_KEY_STORAGE)
+}
+
+export async function verifyAdminKey(key: string) {
+  setAdminKey(key)
+  try {
+    const { data } = await http.post('/admin/verify')
+    return data as { ok: boolean }
+  } catch (e) {
+    clearAdminKey()
+    throw e
+  }
+}
 
 export async function fetchStats() {
   const { data } = await http.get('/puzzles/stats')
